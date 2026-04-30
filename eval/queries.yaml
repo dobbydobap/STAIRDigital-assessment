@@ -1,0 +1,77 @@
+# Evaluation queries for the PDF-grounded agent.
+#
+# The 5 in-scope queries are intentionally generic so the same suite works
+# against any reasonably structured PDF (research paper, policy doc, report).
+# The 3 out-of-scope queries probe the refusal behaviours from the rubric.
+# The Hindi bonus query exercises the multi-language path: a non-English
+# question against an English document, with retrieval cross-lingual via
+# bge-m3 and the answer rendered in the question's language.
+#
+# `expected_behavior` is the rubric-defined assertion the run_eval script
+# checks. `notes` are a hint for human evaluators.
+
+sample_pdf: sample.pdf  # place a PDF at eval/sample.pdf (see README)
+
+queries:
+  - id: V1
+    type: in_scope
+    category: direct_fact
+    query: "What is the title or main heading of this document?"
+    expected_behavior: "answered_with_citations"
+    notes: "Single-page lookup on the front matter."
+
+  - id: V2
+    type: in_scope
+    category: authorship
+    query: "Who authored, prepared, or published this document?"
+    expected_behavior: "answered_with_citations"
+    notes: "Front-matter / colophon lookup."
+
+  - id: V3
+    type: in_scope
+    category: multi_page_synthesis
+    query: "What are the main sections, chapters, or topics covered in this document?"
+    expected_behavior: "answered_with_citations"
+    notes: "Tests retrieval across multiple pages and section-aware chunking."
+
+  - id: V4
+    type: in_scope
+    category: definition
+    query: "Briefly summarize what this document is about."
+    expected_behavior: "answered_with_citations"
+    notes: "Definition / scope question; should pull from intro/abstract."
+
+  - id: V5
+    type: in_scope
+    category: quantitative
+    query: "What date, year, or version number does the document state for itself?"
+    expected_behavior: "answered_with_citations"
+    notes: "Quantitative fact requiring careful reading."
+
+  - id: O1
+    type: out_of_scope
+    category: general_knowledge
+    query: "What is the capital of France?"
+    expected_behavior: "refused_out_of_scope"
+    notes: "Pure general knowledge, completely unrelated."
+
+  - id: O2
+    type: out_of_scope
+    category: opinion_prediction
+    query: "Will the ideas or policies described in this document succeed over the next 10 years?"
+    expected_behavior: "refused_out_of_scope_or_insufficient"
+    notes: "Future prediction / opinion — should refuse rather than speculate."
+
+  - id: O3
+    type: out_of_scope
+    category: adjacent_absent
+    query: "What is the personal birth date of the document's primary author?"
+    expected_behavior: "refused_out_of_scope_or_insufficient"
+    notes: "Plausible-sounding adjacent fact almost never present in such documents."
+
+  - id: B1
+    type: bonus_multilingual
+    category: hindi_query_english_pdf
+    query: "इस दस्तावेज़ का मुख्य विषय क्या है?"
+    expected_behavior: "answered_with_citations_in_query_language"
+    notes: "Hindi question against (likely) English PDF; exercises bge-m3 cross-lingual retrieval and language-matched answer."

@@ -118,6 +118,24 @@ Save a structured PDF (research paper, policy doc, report — typically 10–50 
 eval/sample.pdf
 ```
 
+The 8 rubric queries are written generically (title, authors, sections, summary, date, plus the OOS probes) so any structured PDF will work. NITI Aayog's _National Strategy for AI_, Anthropic's _Claude 3 Model Card_, or any arXiv paper is a fine choice.
+
+### 1a. (Optional) Run the preflight check
+
+```powershell
+python scripts/preflight.py
+```
+
+Confirms imports work, `ANTHROPIC_API_KEY` is set, and `eval/sample.pdf` exists before you spend money on the live eval.
+
+### 1b. (Optional) One-shot programmatic test
+
+```powershell
+python examples/quick_test.py eval/sample.pdf "What is this document about?"
+```
+
+Prints answer + citations + verifier verdict for a single question.
+
 ### 2. Run the suite (CLI)
 
 ```powershell

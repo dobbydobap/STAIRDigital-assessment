@@ -1,4 +1,4 @@
-"""Query rewriter (Gemini 2.5 Flash Lite): coreference resolution, decomposition, lang detection.
+"""Query rewriter (Llama 3.1 8B Instant on Groq): coreference resolution, decomposition, lang detection.
 
 The rewriter never decides scope — that is reserved for the grounded-answer call,
 which has the retrieved evidence in front of it.

@@ -24,7 +24,7 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 8000:8000 -p 8501:8501 \
-		-e GOOGLE_API_KEY=$$GOOGLE_API_KEY \
+		-e GROQ_API_KEY=$$GROQ_API_KEY \
 		-v $$(pwd)/data:/app/data pdfagent:latest
 
 clean:

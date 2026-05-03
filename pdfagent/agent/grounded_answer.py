@@ -1,4 +1,4 @@
-"""Single LLM call (Gemini 2.5 Flash) that produces a grounded answer + citations as JSON.
+"""Single LLM call (Llama 3.3 70B on Groq) that produces a grounded answer + citations as JSON.
 
 If the deterministic verifier rejects the answer, we regenerate ONCE with the
 failure as feedback. A second failure becomes a 'verification_failed' refusal
@@ -149,6 +149,8 @@ def answer_grounded(
             require_at_least_one=True,
         )
         last_answer, last_verify = ans, verify
+
+        # Strict pass: every citation verified.
         if verify.ok:
             return AnswerOutcome(
                 answer=ans,
@@ -157,6 +159,29 @@ def answer_grounded(
                 raw_responses=raw_responses,
                 usage=usage,
             )
+
+        # Partial pass: at least one citation verified. Drop the failing ones,
+        # demote sufficiency to "partial", and re-run the verifier so the
+        # downstream `VerifyResult.ok` reflects the kept-citation subset.
+        ok_checks = [ch for ch in verify.checks if ch.ok]
+        if ok_checks:
+            ans.citations = [ch.citation for ch in ok_checks]
+            if ans.sufficiency == "sufficient":
+                ans.sufficiency = "partial"
+            verify = verify_answer(
+                citations=ans.citations,
+                page_text_by_page=page_text_by_page,
+                require_at_least_one=True,
+            )
+            return AnswerOutcome(
+                answer=ans,
+                verification=verify,
+                attempts=attempt,
+                raw_responses=raw_responses,
+                usage=usage,
+            )
+
+        # Zero citations verified — try once more with the failure as feedback.
         feedback = verify.failure_summary
 
     # Both attempts failed verification — return a verification-failed refusal.

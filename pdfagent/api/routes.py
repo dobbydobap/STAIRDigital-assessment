@@ -2,8 +2,16 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import tempfile
 from pathlib import Path
+
+# `eval/` is a top-level project directory (not part of the installed
+# pdfagent package), so add the project root to sys.path before the
+# `from eval.run_eval import run_eval` inside the /eval route.
+_PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse

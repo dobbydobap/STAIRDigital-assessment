@@ -60,7 +60,16 @@ class VectorStore:
             return 0
         emb = embedder or get_embedder()
         added = 0
-        for batch in chunked(chunks, _BATCH):
+        try:
+            from tqdm import tqdm
+            iterator = tqdm(
+                list(chunked(chunks, _BATCH)),
+                desc=f"embedding {len(chunks)} chunks",
+                unit="batch",
+            )
+        except ImportError:
+            iterator = chunked(chunks, _BATCH)
+        for batch in iterator:
             texts = [c.text for c in batch]
             dense, sparse = emb.encode_documents(texts)
             ids = [c.chunk_id for c in batch]

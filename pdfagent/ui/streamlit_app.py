@@ -4,14 +4,25 @@ Calls the `pdfagent.service` module directly (no separate API process) so
 the deploy story is one process. The FastAPI app is also available for
 programmatic clients but isn't required by the UI.
 
-Color palette: see pdfagent.ui.theme.PALETTE ("Monsoon").
+Color palette: see pdfagent.ui.theme.PALETTE ("Aurora") — soft lavender +
+pink gradients on a warm-white background, with a hero gradient orb on
+the empty state.
 """
 from __future__ import annotations
 
 import json
 import re
+import sys
 import tempfile
 from pathlib import Path
+
+# `pip install -e .` only installs the `pdfagent` package; `eval/` is
+# top-level (test data + runner) so we add the project root to sys.path
+# before any `from eval.*` imports so the live Eval page can run the
+# CLI suite.
+_PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 import streamlit as st
 
@@ -22,11 +33,17 @@ from pdfagent.service import chat as svc_chat, ingest_and_index
 from pdfagent.trace.logger import read_traces
 from pdfagent.ui.eval_page import render_eval_page
 from pdfagent.ui.pdf_viewer import page_image_path
-from pdfagent.ui.theme import apply_theme, pill
+from pdfagent.ui.theme import (
+    apply_theme,
+    brand_row,
+    hero_orb_html,
+    pill,
+    side_section,
+)
 
 st.set_page_config(
     page_title="pdfagent · grounded chat",
-    page_icon="📑",
+    page_icon="✨",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -42,9 +59,38 @@ def _init_state() -> None:
     st.session_state.setdefault("history", [])      # [{role, content}]
     st.session_state.setdefault("turns", [])        # list of TurnResult dicts
     st.session_state.setdefault("page", "Chat")
+    st.session_state.setdefault("queued_query", None)
 
 
 _init_state()
+
+
+SUGGESTIONS = [
+    {
+        "icon": "📄",
+        "title": "What is this document about?",
+        "body": "Get a grounded summary with citations.",
+        "query": "Briefly summarize what this document is about.",
+    },
+    {
+        "icon": "🧭",
+        "title": "What are the main sections?",
+        "body": "Pulls structure from headings across pages.",
+        "query": "What are the main sections, chapters, or topics covered in this document?",
+    },
+    {
+        "icon": "✍️",
+        "title": "Who authored this?",
+        "body": "Front-matter / colophon lookup.",
+        "query": "Who authored, prepared, or published this document?",
+    },
+    {
+        "icon": "🌐",
+        "title": "Try a Hindi question",
+        "body": "Cross-lingual retrieval, Hindi answer with English-source citations.",
+        "query": "इस दस्तावेज़ का मुख्य विषय क्या है?",
+    },
+]
 
 
 # ---------------------------------------------------------------------------
@@ -53,10 +99,15 @@ _init_state()
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("### 📑 pdfagent")
-        st.caption("PDF-grounded chat with strict citations.")
-        st.markdown("---")
+        st.markdown(brand_row("pdfagent", "Grounded PDF chat"), unsafe_allow_html=True)
 
+        if st.button("＋ New chat", use_container_width=True):
+            st.session_state.history = []
+            st.session_state.turns = []
+            st.session_state.queued_query = None
+            st.rerun()
+
+        st.markdown(side_section("View"), unsafe_allow_html=True)
         st.session_state.page = st.radio(
             "View",
             options=["Chat", "Eval", "Traces"],
@@ -64,10 +115,14 @@ def render_sidebar() -> None:
             label_visibility="collapsed",
             index=["Chat", "Eval", "Traces"].index(st.session_state.page),
         )
-        st.markdown("---")
 
-        st.markdown("**Upload a PDF**")
-        uploaded = st.file_uploader("Drop a PDF", type=["pdf"], label_visibility="collapsed")
+        st.markdown(side_section("Upload"), unsafe_allow_html=True)
+        uploaded = st.file_uploader(
+            "Drop a PDF",
+            type=["pdf"],
+            label_visibility="collapsed",
+            help="Drag a PDF here or click to browse.",
+        )
         if uploaded is not None:
             with st.spinner("Ingesting & indexing…"):
                 with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -85,11 +140,10 @@ def render_sidebar() -> None:
             st.session_state.history = []
             st.session_state.turns = []
 
-        st.markdown("---")
-        st.markdown("**Indexed PDFs**")
+        st.markdown(side_section("Indexed PDFs"), unsafe_allow_html=True)
         records = get_registry().list_records()
         if not records:
-            st.caption("No PDFs indexed yet.")
+            st.caption("No PDFs yet.")
         else:
             options = [f"{r.original_filename} · {r.num_pages}p" for r in records]
             current_idx = 0
@@ -98,7 +152,12 @@ def render_sidebar() -> None:
                     if r.pdf_id == st.session_state.active_pdf_id:
                         current_idx = i
                         break
-            choice = st.selectbox("Active PDF", options=options, index=current_idx, label_visibility="collapsed")
+            choice = st.selectbox(
+                "Active PDF",
+                options=options,
+                index=current_idx,
+                label_visibility="collapsed",
+            )
             chosen = records[options.index(choice)]
             if chosen.pdf_id != st.session_state.active_pdf_id:
                 st.session_state.active_pdf_id = chosen.pdf_id
@@ -115,8 +174,8 @@ def render_sidebar() -> None:
 
         st.markdown("---")
         st.caption(
-            "Models: Gemini 2.5 Flash (answer) + 2.5 Flash Lite (rewrite). "
-            "Embeddings: BAAI/bge-m3 (multilingual). Free tier."
+            "Llama 3.3 70B + 3.1 8B Instant on Groq · "
+            "BAAI/bge-m3 multilingual embeddings · free tier."
         )
 
 
@@ -188,20 +247,86 @@ def _render_meta_block(turn: dict) -> None:
     )
 
 
-def render_chat_page() -> None:
-    st.markdown("## Grounded chat")
-    st.caption("Every answer is restricted to the active PDF. Out-of-scope queries are refused with a reason.")
-
-    if not st.session_state.active_pdf_id:
-        st.info("Upload a PDF or pick one from the sidebar to start chatting.")
-        return
-
-    rec: PdfRecord | None = get_registry().get(st.session_state.active_pdf_id)
+def _render_hero(rec: PdfRecord | None) -> None:
     if rec is None:
-        st.error("Active PDF not found in registry.")
+        st.markdown(
+            hero_orb_html(
+                "Hello there",
+                "Upload a PDF to get started.",
+            ),
+            unsafe_allow_html=True,
+        )
         return
+    first_name = "there"
+    st.markdown(
+        hero_orb_html(
+            f"Hello, {first_name}",
+            "What would you like to ask about this document?",
+        ),
+        unsafe_allow_html=True,
+    )
 
-    st.markdown(f"**Active document:** `{rec.original_filename}` · {rec.num_pages} pages")
+    # Suggestion cards (4 columns)
+    cols = st.columns(4)
+    for col, sug in zip(cols, SUGGESTIONS):
+        with col:
+            card_html = (
+                f'<div class="pdf-card">'
+                f'<div class="pdf-card-ico">{sug["icon"]}</div>'
+                f'<div class="pdf-card-title">{sug["title"]}</div>'
+                f'<div class="pdf-card-body">{sug["body"]}</div>'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
+            if st.button("Use this prompt", key=f"sug_{sug['title']}", use_container_width=True):
+                st.session_state.queued_query = sug["query"]
+                st.rerun()
+
+
+def _run_turn(rec: PdfRecord, prompt: str) -> None:
+    """Run a chat turn — updates session_state only, no inline rendering.
+    Caller is expected to st.rerun() so the new history renders cleanly."""
+    st.session_state.history.append({"role": "user", "content": prompt})
+    with st.spinner("Thinking…"):
+        try:
+            turn = svc_chat(
+                pdf_id=rec.pdf_id,
+                query=prompt,
+                history=st.session_state.history[:-1],
+            )
+        except Exception as e:
+            st.session_state.history.pop()
+            st.error(f"Error: {e}")
+            return
+    td = to_dict(turn)
+    st.session_state.turns.append(td)
+    ans = td.get("answer", {})
+    body = ans.get("answer") or ans.get("refusal_reason") or "(no response)"
+    st.session_state.history.append({"role": "assistant", "content": body})
+
+
+def render_chat_page() -> None:
+    rec: PdfRecord | None = None
+    if st.session_state.active_pdf_id:
+        rec = get_registry().get(st.session_state.active_pdf_id)
+
+    # Process a queued suggestion-card query BEFORE deciding hero vs history,
+    # so the page redraws once cleanly with the new turn.
+    if st.session_state.queued_query is not None and rec is not None:
+        prompt = st.session_state.queued_query
+        st.session_state.queued_query = None
+        _run_turn(rec, prompt)
+        st.rerun()
+
+    # Empty state — show hero + suggestions
+    if not st.session_state.history:
+        _render_hero(rec)
+    elif rec is not None:
+        st.markdown(
+            f'<div class="pdf-doc-card"><div class="pdf-doc-name">📄 {rec.original_filename}</div>'
+            f'<div class="pdf-doc-meta">{rec.num_pages} pages · pdf_id <code>{rec.pdf_id[:10]}…</code></div></div>',
+            unsafe_allow_html=True,
+        )
 
     # Replay history
     for i, msg in enumerate(st.session_state.history):
@@ -213,36 +338,14 @@ def render_chat_page() -> None:
                 _render_meta_block(turn)
                 _render_citations_block(turn)
 
-    # Input
-    prompt = st.chat_input("Ask anything about this PDF…")
-    if not prompt:
-        return
-
-    st.session_state.history.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking…"):
-            try:
-                turn = svc_chat(
-                    pdf_id=rec.pdf_id,
-                    query=prompt,
-                    history=st.session_state.history[:-1],
-                )
-            except Exception as e:
-                st.error(f"Error: {e}")
-                st.session_state.history.pop()
-                return
-        td = to_dict(turn)
-        st.session_state.turns.append(td)
-
-        ans = td.get("answer", {})
-        body = ans.get("answer") or ans.get("refusal_reason") or "(no response)"
-        st.markdown(_annotate_with_chips(body), unsafe_allow_html=True)
-        _render_meta_block(td)
-        _render_citations_block(td)
-        st.session_state.history.append({"role": "assistant", "content": body})
+    # Chat input — also goes through _run_turn + rerun for one clean redraw
+    placeholder = (
+        "Ask anything about this PDF…" if rec is not None else "Upload a PDF in the sidebar to start chatting."
+    )
+    prompt = st.chat_input(placeholder, disabled=(rec is None))
+    if prompt and rec is not None:
+        _run_turn(rec, prompt)
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pdfagent.types import Citation
 
 
-MIN_QUOTE_WORDS = 6  # under this we treat the quote as too generic to verify
+MIN_QUOTE_WORDS = 5  # under this a quote is too generic to be a meaningful verification
 
 
 @dataclass

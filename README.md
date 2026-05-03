@@ -6,9 +6,22 @@ whenever the question goes outside the document.
 
 Built for **STAIR x Scaler School of Technology, Task 3 (10 marks)**.
 
-> **Runs entirely on free tiers.** LLM calls go to Google Gemini's free API
-> (no credit card needed) and embeddings are local via `bge-m3`. No paid
-> service is required to test or deploy.
+> **Runs entirely on free tiers.** LLM calls go to Groq's free API (Llama
+> 3.3 70B + 3.1 8B Instant, no credit card required) and embeddings are
+> local via `bge-m3`. No paid service is required to test or deploy.
+
+## Demo
+
+| | |
+|---|---|
+| Empty hero · gradient orb + suggestion cards | ![Hero](screenshots/01-hero.png) |
+| Grounded answer with verbatim citation expander | ![Chat citation](screenshots/02-chat-citation.png) |
+| Out-of-scope refusal with reason | ![Refusal](screenshots/03-refusal.png) |
+| Live evaluation suite (5 in-scope + 3 OOS + Hindi bonus) | ![Eval](screenshots/04-eval.png) |
+| Per-turn JSONL traces with retrieval scores + verifier | ![Traces](screenshots/05-traces.png) |
+
+_Demo video: [add link after recording]_
+
 
 > **Submission**
 > - Repository: <https://github.com/dobbydobap/STAIRDigital-assessment>
@@ -22,7 +35,7 @@ Built for **STAIR x Scaler School of Technology, Task 3 (10 marks)**.
 | Rubric item | Where it lives |
 |---|---|
 | Accept any PDF | Streamlit upload + ingestion pipeline (text PDFs, tables, scanned PDFs via OCR fallback) |
-| Answer only from the PDF | Hybrid retrieval + grounded-answer Gemini call + **deterministic verbatim-quote verifier** that rejects any quoted span not present on the cited page |
+| Answer only from the PDF | Hybrid retrieval + grounded-answer Llama 3.3 70B call + **deterministic verbatim-quote verifier** that rejects any quoted span not present on the cited page |
 | Refuse out-of-scope queries | 4-category refusals: `out_of_scope`, `insufficient_evidence`, `partially_answerable`, `ambiguous` (plus `verification_failed` if even the verifier rejects) |
 | Citations (page + section) | Every claim ends with `[p.N]`; each citation expands to show the verbatim quoted span and a rendered page image |
 | Testability — 5 valid + 3 invalid queries | `eval/queries.yaml` (also includes a Hindi bonus query) |
@@ -57,10 +70,10 @@ Built for **STAIR x Scaler School of Technology, Task 3 (10 marks)**.
                   ▼                              ▼               ▼
         ┌────────────────────┐   ┌────────────────────┐  ┌──────────────┐
         │   Index             │   │   Retrieve          │  │  Agent       │
-        │   bge-m3 dense+sparse│   │   bge-m3 hybrid     │  │  Gemini 2.5  │
-        │   ChromaDB persist   │   │   sub-query fan-out │  │  Flash       │
-        └────────────────────┘   └────────────────────┘  │  + Lite for  │
-                                                          │  the rewrite │
+        │   bge-m3 dense+sparse│   │   bge-m3 hybrid     │  │  Llama 3.3   │
+        │   ChromaDB persist   │   │   sub-query fan-out │  │  70B (Groq)  │
+        └────────────────────┘   └────────────────────┘  │  + 3.1 8B    │
+                                                          │  for rewrite │
                                                           │  + Verifier  │
                                                           │  (verbatim)  │
                                                           └──────────────┘
@@ -90,7 +103,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-copy .env.example .env                       # then edit .env to set GOOGLE_API_KEY
+copy .env.example .env                       # then edit .env to set GROQ_API_KEY
 # cp .env.example .env                        # macOS / Linux
 ```
 
@@ -130,7 +143,7 @@ The 8 rubric queries are written generically (title, authors, sections, summary,
 python scripts/preflight.py
 ```
 
-Confirms imports work, `GOOGLE_API_KEY` is set, and `eval/sample.pdf` exists before you run the live eval.
+Confirms imports work, `GROQ_API_KEY` is set, and `eval/sample.pdf` exists before you run the live eval.
 
 ### 1b. (Optional) One-shot programmatic test
 
@@ -176,7 +189,7 @@ Click **Eval** in the sidebar → **Run eval suite**. The page renders pass/fail
 pytest tests/test_verify.py tests/test_chunk.py tests/test_llm_json.py -v
 ```
 
-### 6. Run the live integration tests (hit Gemini + bge-m3)
+### 6. Run the live integration tests (hit Groq + bge-m3)
 
 ```powershell
 $env:PDFAGENT_RUN_LIVE = "1"
@@ -196,7 +209,7 @@ Try a question whose answer the PDF doesn't contain — you should get a refusal
 ```powershell
 docker build -t pdfagent:latest .
 docker run --rm -p 8501:8501 -p 8000:8000 `
-  -e GOOGLE_API_KEY=$env:GOOGLE_API_KEY `
+  -e GROQ_API_KEY=$env:GROQ_API_KEY `
   -v ${PWD}/data:/data `
   pdfagent:latest
 ```
@@ -211,7 +224,7 @@ docker compose up --build
 
 1. Create a new Space → SDK = **Docker**.
 2. Push this repo to the Space's git remote.
-3. In Space settings, add `GOOGLE_API_KEY` as a secret.
+3. In Space settings, add `GROQ_API_KEY` as a secret.
 4. The included `Dockerfile` exposes 8501 (Streamlit) which Spaces will publish on the Space URL.
 
 The Dockerfile pre-downloads the bge-m3 weights so cold starts on Spaces are sane.
@@ -232,7 +245,7 @@ Color palette: see top of `pdfagent/ui/theme.py` (the "Monsoon" palette: deep mi
 
 - **One LLM call for the answer, not two.** A second LLM verifier was tempting but adds 5–10 s of latency without being more defensible than a deterministic substring check. Verbatim-quote verification in Python is auditable — the failure mode is exactly the surface the rubric scores on.
 - **bge-m3 hybrid (dense + sparse) instead of a separate cross-encoder.** bge-m3 returns both in one forward pass; combined with sub-query fan-out from the rewriter this reaches good recall without a heavyweight reranker. Add one only if eval recall starts missing.
-- **Free-tier first.** LLM calls go to Google Gemini's free API (Gemini 2.5 Flash for answers, 2.5 Flash Lite for query rewrites). Embeddings are local (`bge-m3`). The whole stack runs without paying any vendor — important for a student submission that has to be reproducible by graders. The LLM client is isolated to one file (`pdfagent/llm.py`) so swapping in Anthropic, OpenAI, or a local model is a single-file edit.
+- **Free-tier first.** LLM calls go to Groq's free API (Llama 3.3 70B for answers, Llama 3.1 8B Instant for query rewrites). Embeddings are local (`bge-m3`). The whole stack runs without paying any vendor — important for a student submission that has to be reproducible by graders. The LLM client is isolated to one file (`pdfagent/llm.py`) so swapping in Gemini, Anthropic, OpenAI, or a local model is a single-file edit (a Gemini reference adapter is included at `pdfagent/llm_groq.py` historically — see git history).
 - **Sub-query rewriter, not a scope classifier.** The rewriter resolves coreferences, decomposes compound questions, and detects language; it intentionally does NOT decide whether the question is answerable. Scope is decided by the answerer, which has the retrieved evidence in front of it.
 - **Page-image citation expanders.** Visible quoted span + page screenshot is what makes grounding feel real to a human evaluator. PyMuPDF's `page.get_pixmap()` is fast enough to cache lazily.
 - **Refusal categories matter.** `out_of_scope` (general knowledge), `insufficient_evidence` (on-topic but missing), `partially_answerable` (compound), `ambiguous` (asks back), and a hard `verification_failed` floor when even the verifier rejects.
@@ -248,15 +261,15 @@ Color palette: see top of `pdfagent/ui/theme.py` (the "Monsoon" palette: deep mi
 pdfagent/
 ├── ingest/      # PyMuPDF text + heading detection, tables, OCR, chunking
 ├── index/       # bge-m3 embedder + ChromaDB store
-├── retrieve/    # query rewriter (Gemini Flash Lite) + hybrid fan-out
-├── agent/       # grounded-answer Gemini Flash call + verbatim verifier
+├── retrieve/    # query rewriter (Llama 3.1 8B) + hybrid fan-out
+├── agent/       # grounded-answer Llama 3.3 70B call + verbatim verifier
 ├── trace/       # JSONL turn logger + cost aggregator
 ├── api/         # FastAPI app and routes
 ├── ui/          # Streamlit app + custom theme + eval/traces pages
 ├── service.py   # facade: ingest_and_index, chat
 ├── orchestrator.py # rewrite → retrieve → answer → verify pipeline
 ├── registry.py  # per-PDF metadata + page text store
-├── llm.py       # Google Gemini client wrapper (the only provider-aware file)
+├── llm.py       # Groq (Llama) client wrapper (the only provider-aware file)
 ├── config.py    # env-driven runtime config
 └── types.py     # shared dataclasses
 

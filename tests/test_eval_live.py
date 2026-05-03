@@ -1,7 +1,7 @@
 """Live integration test — runs the full 8-query suite end-to-end.
 
 Skipped unless PDFAGENT_RUN_LIVE=1 is set. Requires:
-- GOOGLE_API_KEY in the environment (free at https://aistudio.google.com/apikey)
+- GROQ_API_KEY in the environment (free at https://console.groq.com/keys)
 - bge-m3 model downloaded (first run takes a few minutes)
 - A sample PDF at eval/sample.pdf
 """

@@ -26,7 +26,7 @@ def _fail(msg: str) -> str:
 def main() -> int:
     failures: list[str] = []
     print("preflight: checking imports …")
-    for mod in ("fitz", "google.genai", "chromadb", "FlagEmbedding", "fastapi", "streamlit", "yaml", "pydantic"):
+    for mod in ("fitz", "groq", "chromadb", "FlagEmbedding", "fastapi", "streamlit", "yaml", "pydantic"):
         try:
             __import__(mod)
         except Exception as e:
@@ -37,10 +37,10 @@ def main() -> int:
     print("preflight: checking config …")
     try:
         from pdfagent.config import CONFIG
-        if not CONFIG.google_api_key:
-            failures.append(_fail("GOOGLE_API_KEY is empty (set it in .env — get one at https://aistudio.google.com/apikey)"))
+        if not CONFIG.groq_api_key:
+            failures.append(_fail("GROQ_API_KEY is empty (set it in .env — get one at https://console.groq.com/keys)"))
         else:
-            _ok("GOOGLE_API_KEY is set")
+            _ok("GROQ_API_KEY is set")
         for d in (CONFIG.chroma_dir, CONFIG.traces_dir, CONFIG.uploads_dir, CONFIG.page_image_dir):
             if d.exists():
                 _ok(f"data dir present: {d}")

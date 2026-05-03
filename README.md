@@ -1,3 +1,14 @@
+---
+title: pdfagent
+emoji: ✨
+colorFrom: indigo
+colorTo: pink
+sdk: docker
+app_port: 8501
+pinned: false
+license: mit
+---
+
 # pdfagent — PDF-Constrained Conversational Agent
 
 A grounded chat agent for PDFs. Upload any document, ask questions about it,

@@ -3,9 +3,10 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PDFAGENT_DATA_DIR=/data
+    PDFAGENT_DATA_DIR=/data \
+    HF_HOME=/data/.hfcache
 
-# System deps for PyMuPDF, ChromaDB, rapidocr (onnxruntime), torch (CPU).
+# System deps for PyMuPDF, ChromaDB, rapidocr (onnxruntime).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgl1 \
@@ -17,24 +18,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install dependencies first for better layer caching.
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && \
-    pip install -e .
+# Copy the whole project first; simpler than splitting deps from source and
+# guarantees `pip install -e .` finds the pdfagent package layout.
+COPY . .
 
-COPY pdfagent ./pdfagent
-COPY eval ./eval
-COPY .streamlit ./.streamlit
+# Install deps + the editable package in one shot.
+RUN pip install --upgrade pip && pip install -e .
 
-# Pre-download bge-m3 so cold start in production isn't 2 minutes long.
-# Comment out for a smaller image (~3 GB savings) if you'd rather pay the cost on first request.
+# Pre-download bge-m3 weights so cold start on the live demo isn't 2-3 min.
 RUN python -c "from FlagEmbedding import BGEM3FlagModel; BGEM3FlagModel('BAAI/bge-m3', use_fp16=False)"
 
+# HF Spaces gives a writable /data; create the dirs the app expects.
 RUN mkdir -p /data/chroma /data/traces /data/uploads /data/page_images /data/pdfs
 
-EXPOSE 8000 8501
+EXPOSE 8501
 
-# By default we run the Streamlit UI (it imports pdfagent.service directly,
-# so no separate API process is required). To run the FastAPI surface instead:
-#   docker run … pdfagent uvicorn pdfagent.api.app:app --host 0.0.0.0 --port 8000
-CMD ["streamlit", "run", "pdfagent/ui/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Streamlit on 8501 (matches `app_port: 8501` in README front matter).
+CMD ["streamlit", "run", "pdfagent/ui/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]

@@ -1,7 +1,11 @@
-"""Anthropic client wrapper. Centralizes the API key, model selection, and
-returns both content and usage so callers can log tokens/cost.
+"""Google Gemini client wrapper.
 
-Pricing table is approximate and only used for the in-UI cost counter.
+We use Gemini's free-tier API (no credit card required). The wrapper exposes
+the same `call()` function and `LLMResult` shape every other module already
+uses, so this is the only file that knows which provider is behind the LLM.
+
+If you ever want to swap to Anthropic, OpenAI, or a local model, replace the
+body of `call()` and `_client()` and the rest of the codebase is unchanged.
 """
 from __future__ import annotations
 
@@ -11,16 +15,19 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from pdfagent.config import CONFIG
 
-# USD per million tokens (approximate; UI shows this as an estimate).
+# Gemini free tier doesn't bill for the models we use; these are nominal
+# values so the UI cost line stays consistent. Replace if you switch tier.
 _PRICING = {
-    "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-opus-4-7": (15.0, 75.0),
-    "claude-haiku-4-5-20251001": (1.0, 5.0),
-    "claude-haiku-4-5": (1.0, 5.0),
+    "gemini-2.5-flash": (0.0, 0.0),
+    "gemini-2.5-flash-lite": (0.0, 0.0),
+    "gemini-2.0-flash": (0.0, 0.0),
+    "gemini-2.0-flash-lite": (0.0, 0.0),
+    "gemini-1.5-flash": (0.0, 0.0),
 }
 
 
@@ -37,14 +44,17 @@ class LLMResult:
 
 
 @lru_cache(maxsize=1)
-def _client() -> anthropic.Anthropic:
-    if not CONFIG.anthropic_api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set; copy .env.example to .env")
-    return anthropic.Anthropic(api_key=CONFIG.anthropic_api_key)
+def _client() -> "genai.Client":
+    if not CONFIG.google_api_key:
+        raise RuntimeError(
+            "GOOGLE_API_KEY is not set. Get a free key at "
+            "https://aistudio.google.com/apikey and put it in .env"
+        )
+    return genai.Client(api_key=CONFIG.google_api_key)
 
 
 def _cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    pin, pout = _PRICING.get(model, (3.0, 15.0))
+    pin, pout = _PRICING.get(model, (0.0, 0.0))
     return (input_tokens * pin + output_tokens * pout) / 1_000_000
 
 
@@ -56,19 +66,26 @@ def call(
     max_tokens: int = 1024,
     temperature: float = 0.0,
 ) -> LLMResult:
+    """Send a single-turn message to Gemini.
+
+    `system` becomes Gemini's `system_instruction`. `user` is the message body.
+    Returns text plus token counts so callers can log usage.
+    """
     m = model or CONFIG.model_answer
-    resp = _client().messages.create(
-        model=m,
-        max_tokens=max_tokens,
+    config = types.GenerateContentConfig(
+        system_instruction=system,
+        max_output_tokens=max_tokens,
         temperature=temperature,
-        system=system,
-        messages=[{"role": "user", "content": user}],
     )
-    text_parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
-    text = "".join(text_parts).strip()
-    usage = resp.usage
-    in_tok = int(getattr(usage, "input_tokens", 0))
-    out_tok = int(getattr(usage, "output_tokens", 0))
+    response = _client().models.generate_content(
+        model=m,
+        contents=user,
+        config=config,
+    )
+    text = (getattr(response, "text", "") or "").strip()
+    usage = getattr(response, "usage_metadata", None)
+    in_tok = int(getattr(usage, "prompt_token_count", 0) or 0) if usage else 0
+    out_tok = int(getattr(usage, "candidates_token_count", 0) or 0) if usage else 0
     return LLMResult(
         text=text,
         model=m,
@@ -90,7 +107,6 @@ def _extract_json(text: str) -> dict[str, Any]:
     if m:
         candidates.append(m.group(1))
     candidates.append(text)
-    # also try slicing from the first { to the last }
     first = text.find("{")
     last = text.rfind("}")
     if first != -1 and last != -1 and last > first:

@@ -1,4 +1,4 @@
-"""Single Sonnet call that produces a grounded answer + citations as JSON.
+"""Single LLM call (Gemini 2.5 Flash) that produces a grounded answer + citations as JSON.
 
 If the deterministic verifier rejects the answer, we regenerate ONCE with the
 failure as feedback. A second failure becomes a 'verification_failed' refusal

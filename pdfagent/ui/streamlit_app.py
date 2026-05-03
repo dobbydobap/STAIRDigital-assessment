@@ -115,8 +115,8 @@ def render_sidebar() -> None:
 
         st.markdown("---")
         st.caption(
-            "Models: Sonnet 4.6 (answer) + Haiku 4.5 (rewrite). "
-            "Embeddings: BAAI/bge-m3 (multilingual)."
+            "Models: Gemini 2.5 Flash (answer) + 2.5 Flash Lite (rewrite). "
+            "Embeddings: BAAI/bge-m3 (multilingual). Free tier."
         )
 
 

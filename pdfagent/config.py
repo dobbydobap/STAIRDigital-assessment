@@ -12,7 +12,7 @@ load_dotenv()
 
 @dataclass(frozen=True)
 class Config:
-    anthropic_api_key: str
+    google_api_key: str
     data_dir: Path
     model_answer: str
     model_rewrite: str
@@ -38,10 +38,10 @@ class Config:
 def _build() -> Config:
     data_dir = Path(os.getenv("PDFAGENT_DATA_DIR", "./data")).resolve()
     cfg = Config(
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
+        google_api_key=os.getenv("GOOGLE_API_KEY", ""),
         data_dir=data_dir,
-        model_answer=os.getenv("PDFAGENT_MODEL_ANSWER", "claude-sonnet-4-6"),
-        model_rewrite=os.getenv("PDFAGENT_MODEL_REWRITE", "claude-haiku-4-5-20251001"),
+        model_answer=os.getenv("PDFAGENT_MODEL_ANSWER", "gemini-2.5-flash"),
+        model_rewrite=os.getenv("PDFAGENT_MODEL_REWRITE", "gemini-2.5-flash-lite"),
         max_history_turns=int(os.getenv("PDFAGENT_MAX_HISTORY_TURNS", "2")),
     )
     for d in (cfg.chroma_dir, cfg.traces_dir, cfg.uploads_dir, cfg.page_image_dir):

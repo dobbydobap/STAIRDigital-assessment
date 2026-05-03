@@ -13,3 +13,4 @@ data/traces/
 data/uploads/
 *.log
 .streamlit/secrets.toml
+eval/sample.pdf

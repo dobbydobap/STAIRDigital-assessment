@@ -15,8 +15,8 @@ A chat agent that answers questions about a PDF you upload. It only uses the PDF
 
 Built for **STAIR x Scaler School of Technology — Task 3 (10 marks)**.
 
-- **Live demo:** _add HuggingFace Spaces URL here_
-- **Demo video:** _add YouTube/Drive link here_
+- **Live demo:** _add HuggingFace Spaces URL here once the build is green_
+- **Demo video:** https://drive.google.com/file/d/1_kMPudYHJfNWcyf4UrTNPxp3LuGUTd5O/view?usp=sharing
 - **Repo:** https://github.com/dobbydobap/STAIRDigital-assessment
 
 Submission to `yashwardhansinghrathore1@gmail.com`, CC `saraffshubham@gmail.com`.

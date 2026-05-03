@@ -14,3 +14,4 @@ data/uploads/
 *.log
 .streamlit/secrets.toml
 eval/sample.pdf
+data/page_images/

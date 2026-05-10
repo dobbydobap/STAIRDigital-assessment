@@ -13,8 +13,6 @@ license: mit
 
 A chat agent that answers questions about a PDF you upload. It only uses the PDF as a source. Every claim it makes is tied to a page, with the exact quoted line shown. If you ask something the document doesn't cover, it refuses and explains why.
 
-Built for **STAIR x Scaler School of Technology — Task 3 (10 marks)**.
-
 - **Live demo:** https://huggingface.co/spaces/varshitha2007899/pdfagent
 - **Demo video:** https://drive.google.com/file/d/1_kMPudYHJfNWcyf4UrTNPxp3LuGUTd5O/view?usp=sharing
 - **Repo:** https://github.com/dobbydobap/STAIRDigital-assessment
